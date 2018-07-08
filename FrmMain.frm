@@ -1,7 +1,7 @@
 VERSION 5.00
 Begin {C62A69F0-16DC-11CE-9E98-00AA00574A4F} FrmMain 
    Caption         =   "Signature Page Generator"
-   ClientHeight    =   5505
+   ClientHeight    =   8745
    ClientLeft      =   120
    ClientTop       =   450
    ClientWidth     =   10635
@@ -14,37 +14,123 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
-Dim SigPageArray() As Variant
 
-
-
+Dim SigPageArray As Variant
+Dim FilenameArray() As String
 Dim xCounter As Integer
+Option Compare Text
 
- Sub TrackSigPages(ByVal PartyName As String, ByVal Filename As String, ByVal DocName As String)
-
- Dim intI As Integer, intJ As Integer
- If UBound(SigPageArray, 2) > 0 Then
-    For i = (LBound(SigPageArray, 2) + 1) To (UBound(SigPageArray, 2))
-        If SigPageArray(1, i) = PartyName Then
-            SigPageArray(2, i) = SigPageArray(2, i) & "/" & Filename
-            SigPageArray(3, i) = SigPageArray(3, i) & "/" & DocName
-            GoTo PartyNameInArray
+' Omit plngLeft & plngRight; they are used internally during recursion
+Public Sub QuickSort(ByRef pvarArray As Variant, Optional ByVal plngLeft As Long, Optional ByVal plngRight As Long)
+    Dim lngFirst As Long
+    Dim lngLast As Long
+    Dim varMid As Variant
+    Dim varSwap As Variant
+    
+    If plngRight = 0 Then
+        plngLeft = LBound(pvarArray)
+        plngRight = UBound(pvarArray)
+    End If
+    lngFirst = plngLeft
+    lngLast = plngRight
+    varMid = pvarArray((plngLeft + plngRight) \ 2)
+    Do
+        Do While pvarArray(lngFirst) < varMid And lngFirst < plngRight
+            lngFirst = lngFirst + 1
+        Loop
+        Do While varMid < pvarArray(lngLast) And lngLast > plngLeft
+            lngLast = lngLast - 1
+        Loop
+        If lngFirst <= lngLast Then
+            varSwap = pvarArray(lngFirst)
+            pvarArray(lngFirst) = pvarArray(lngLast)
+            pvarArray(lngLast) = varSwap
+            lngFirst = lngFirst + 1
+            lngLast = lngLast - 1
         End If
-    Next
-    ReDim Preserve SigPageArray(3, UBound(SigPageArray, 2) + 1)
+    Loop Until lngFirst > lngLast
+    If plngLeft < lngLast Then QuickSort pvarArray, plngLeft, lngLast
+    If lngFirst < plngRight Then QuickSort pvarArray, lngFirst, plngRight
+End Sub
+Sub GenerateReport()
+    If UBound(SigPageArray, 2) = 0 Then Exit Sub
+    FrmReport.TxtReport.Text = ""
+    Dim KeyList() As String
+    Dim KeyBasenameList() As String
+    Dim KeyFound As Boolean
+    Dim SortByColumn As Integer
+    Dim iKeyBasename As Integer
+    'Dim FilenameArray() As String
+    KeyFound = False
+    SortByColumn = 3
+    If FrmReport.RadioParty.Value = True Then SortByColumn = 1
+    If FrmReport.RadioDocument.Value = True Then SortByColumn = 3
+    
+    ReDim KeyList(1)
+    ReDim KeyBasenameList(1)
+    
+    If FrmReport.RadioSigPages.Value = False Then
+        For intI = LBound(SigPageArray, 2) To UBound(SigPageArray, 2)
+
+            For iKey = LBound(KeyList) To UBound(KeyList)
+                If KeyList(iKey) = SigPageArray(SortByColumn, intI) Then KeyFound = True
+            Next iKey
+            
+            'For iKeyBasename = LBound(KeyBasenameList) To UBound(KeyBasenameList)
+            '    If KeyBasenameList(iKeyBasename) = SigPageArray(4, intI) Then KeyFound = True: Debug.Print "already listed sig page"
+
+            'Next iKeyBasename
+
+            If KeyFound = False Then
+                FrmReport.TxtReport.Text = FrmReport.TxtReport.Text & SigPageArray(SortByColumn, intI) & vbCrLf
+                For intX = LBound(SigPageArray, 2) To UBound(SigPageArray, 2)
+
+
+                    If SigPageArray(SortByColumn, intX) = SigPageArray(SortByColumn, intI) Then
+                        For intY = intI To intX - 1 'LBound(SigPageArray, 2) To intX - 1
+                            If SigPageArray(4, intX) = SigPageArray(4, intY) Then KeyFound = False: GoTo SkipDupes:
+                        Next intY
+                        If SortByColumn = 1 Then
+                            FrmReport.TxtReport.Text = FrmReport.TxtReport.Text & "  *  " & SigPageArray(3, intX) & vbCrLf
+                        Else
+                            FrmReport.TxtReport.Text = FrmReport.TxtReport.Text & "  *  " & SigPageArray(1, intX) & vbCrLf
+                        End If
+                    End If
+SkipDupes:
+                Next intX
+
+                ReDim Preserve KeyList(UBound(KeyList) + 1)
+                KeyList(UBound(KeyList)) = SigPageArray(SortByColumn, intI)
+                ReDim Preserve KeyBasenameList(UBound(KeyBasenameList) + 1)
+                KeyBasenameList(UBound(KeyBasenameList)) = SigPageArray(4, intI)
+            Else
+                KeyFound = False
+            End If
+        Next intI
+     Else
+        ReDim FilenameArray(UBound(SigPageArray, 2))
+        For intI = LBound(FilenameArray) To UBound(FilenameArray)
+            FilenameArray(intI) = SigPageArray(2, intI)
+        Next
+        QuickSort FilenameArray
+        For intI = LBound(FilenameArray) To UBound(FilenameArray)
+            FrmReport.TxtReport.Text = FrmReport.TxtReport.Text & Replace(FilenameArray(intI), TxtOutputFolder.Text, "") & vbCrLf
+        Next
+    End If
+
+End Sub
+
+
+
+
+Sub TrackSigPages(ByVal PartyName As String, ByVal Filename As String, ByVal DocName As String, ByVal BaseName As String)
+    
+    ReDim Preserve SigPageArray(4, UBound(SigPageArray, 2) + 1)
     SigPageArray(1, UBound(SigPageArray, 2)) = PartyName
     SigPageArray(2, UBound(SigPageArray, 2)) = Filename
     SigPageArray(3, UBound(SigPageArray, 2)) = DocName
-    GoTo PartyNameInArray
-  Else
-    ReDim SigPageArray(3, 1)
-    SigPageArray(1, 1) = PartyName
-    SigPageArray(2, 1) = Filename
-    SigPageArray(3, 1) = DocName
-  End If
-  
-PartyNameInArray:
-
+    SigPageArray(4, UBound(SigPageArray, 2)) = BaseName
+    
 End Sub
 
 
@@ -115,15 +201,18 @@ Private Sub CmdGenerateSigPages_Click()
   Dim objDocument As Document
   Dim SigPagesDoc As Document
   Dim SigPageFilename As String
+  Dim SigPageBasename As String
   Dim OutputFolder As String
   Dim SigPageProperties() As String
   Dim PropName As String
   Dim PropValue As String
   Dim PageLimit As Integer
+  Dim PageRange As Integer
   Dim PropStr As String
   Dim SigPagePartyName As String
   Dim DocumentName As String
   Dim SigPageCount As Integer
+  Dim PageNumOfSigPage As Integer
   
   Dim StartTime As Double
   Dim SecondsElapsed As Double
@@ -134,13 +223,16 @@ Private Sub CmdGenerateSigPages_Click()
   
   Application.Browser.Target = wdBrowsePage
   'Set SigPagesDoc = Documents.Add
-  If Right(TxtOutputFolder.Text, 1) <> "\" Then OutputFolder = TxtOutputFolder + "\"
-  ReDim SigPageArray(3, 0)
-    For ifilename = 0 To LstFilenames.ListCount - 1
+  If Right(TxtOutputFolder.Text, 1) <> "\" Then TxtOutputFolder.Text = TxtOutputFolder.Text + "\"
+  ReDim SigPageArray(4, 0)
+  For ifilename = 0 To LstFilenames.ListCount - 1
         LstFilenames.Selected(ifilename) = False
     Next
   For ifilename = 0 To LstFilenames.ListCount - 1
     LstFilenames.Selected(ifilename) = True
+    LstFilenames.ListIndex = ifilename
+    PageLimit = 0
+    PageRange = 0
     Set objDocument = Documents.Open(Filename:=LstFilenames.List(ifilename), Visible:=False, ReadOnly:=True)
     Documents(objDocument).Activate
     
@@ -188,6 +280,8 @@ Private Sub CmdGenerateSigPages_Click()
                     Select Case PropName
                         Case "LIMIT"
                             PageLimit = Int(PropValue)
+                        Case "PAGES"
+                            PageRange = Int(PropValue) - 1
                         ' add future signature page properties here
                         'Case "INSERT PROPERTY NAME HERE"
                     End Select
@@ -198,29 +292,39 @@ Private Sub CmdGenerateSigPages_Click()
             SigPagePartyName = Trim(Mid(SigPageString, 18, Len(SigPageString) - 19))
             ' get name of document being procesed
             DocumentName = Left(ActiveDocument.Name, InStrRev(ActiveDocument.Name, ".") - 1)
-            
+            PageNumOfSigPage = Selection.Information(wdActiveEndPageNumber)
+
             For DupeCount = 1 To Int(CmbDuplicateCount.Text)
                 ' generate unique signature page filename using page number, copy number and party name
-                SigPageFilename = OutputFolder & SigPagePartyName & " Sig Page - " & DocumentName & " (Page " & Str(Selection.Information(wdActiveEndPageNumber)) & " Copy " & Str(DupeCount) & ").pdf"
+                SigPageFilename = TxtOutputFolder.Text & SigPagePartyName & " Sig Page - " & DocumentName & " (Copy " & Str(DupeCount) & " Page " & Str(Selection.Information(wdActiveEndPageNumber)) & ").pdf"
+                ' generate unique signature page basename using page number and party name (but not copy number). This is used avoid duplicates in the report
+                SigPageBasename = SigPagePartyName & " Sig Page - " & DocumentName & " (Page " & Str(Selection.Information(wdActiveEndPageNumber)) & ").pdf"
                 
                 ' add sig page name to array of all sig pages for reporting and combining
-                TrackSigPages SigPagePartyName, SigPageFilename, DocumentName
+                TrackSigPages SigPagePartyName, SigPageFilename, DocumentName, SigPageBasename
                 
                 ' export each sig page as a PDF
                 ActiveDocument.ExportAsFixedFormat OutputFileName:= _
+                SigPageFilename, ExportFormat:=wdExportFormatPDF, _
+                OpenAfterExport:=False, OptimizeFor:=wdExportOptimizeForPrint, Range:= _
+                wdExportFromTo, From:=PageNumOfSigPage, To:=(PageNumOfSigPage + PageRange), Item:=wdExportDocumentContent, _
+                IncludeDocProps:=False, KeepIRM:=False, CreateBookmarks:= _
+                wdExportCreateHeadingBookmarks, DocStructureTags:=True, _
+                BitmapMissingFonts:=False, UseISO19005_1:=False
+                 ' export each sig page as a PDF
+               ' ActiveDocument.ExportAsFixedFormat OutputFileName:= _
                 SigPageFilename, ExportFormat:=wdExportFormatPDF, _
                 OpenAfterExport:=False, OptimizeFor:=wdExportOptimizeForPrint, Range:= _
                 wdExportCurrentPage, Item:=wdExportDocumentContent, _
                 IncludeDocProps:=False, KeepIRM:=False, CreateBookmarks:= _
                 wdExportCreateHeadingBookmarks, DocStructureTags:=True, _
                 BitmapMissingFonts:=False, UseISO19005_1:=False
-                
+               
                 ' count number of sig pages generated
                 SigPageCount = SigPageCount + 1
                 
                 ' check if the current signature page has any limits and if so exit export loop
                 If DupeCount = PageLimit Then
-                    Debug.Print "sig page count limited"
                     Exit For
                 End If
             Next
@@ -231,25 +335,29 @@ Private Sub CmdGenerateSigPages_Click()
 
     objDocument.Close SaveChanges:=wdDoNotSaveChanges
     Next
-    Debug.Print "The following signature pages were generated for each party:"
-    For intI = (LBound(SigPageArray, 2) + 1) To (UBound(SigPageArray, 2))
-        Debug.Print "Party Name: " & SigPageArray(1, intI)
-        Dim DocNames
-        If InStr(SigPageArray(3, intI), "/") <> 0 Then
-            DocNames = Split(SigPageArray(3, intI), "/")
-            For intX = 0 To (UBound(DocNames))
-                Debug.Print "  *", DocNames(intX)
-            Next intX
-        Else
-            Debug.Print "  *  " & SigPageArray(3, intI)
-        End If
-     Next intI
+    
+    GenerateReport
+    
     'Determine how many seconds code took to run
     SecondsElapsed = Round(Timer - StartTime, 2)
-
     'Notify user in seconds
     MsgBox Str(SigPageCount) & " signature pages generated in " & SecondsElapsed & " seconds", vbInformation
 
+    
+End Sub
+
+
+
+Private Sub RadioDocument_Click()
+GenerateReport
+End Sub
+
+Private Sub RadioParty_Click()
+GenerateReport
+End Sub
+
+Private Sub RadioSigPages_Click()
+GenerateReport
 End Sub
 
 Private Sub UserForm_Click()
@@ -258,6 +366,8 @@ Private Sub UserForm_Click()
 End Sub
 
 Private Sub UserForm_Initialize()
+ReDim SigPageArray(4, 0)
+
 For i = 1 To 100
 CmbDuplicateCount.AddItem Trim(Str(i))
 Next
