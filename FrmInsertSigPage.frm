@@ -14,6 +14,19 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
+Private Declare Function SetWindowPos Lib "user32" _
+(ByVal hWnd As Long, ByVal hWndInsertAfter As Long, ByVal x As Long, ByVal Y As Long, _
+ByVal cx As Long, ByVal cy As Long, ByVal wFlags As Long) As Long
+
+Private Const HWND_TOPMOST = -1 'bring to top and stay there
+Private Const SWP_NOMOVE = &H2 'don't move window
+Private Const SWP_NOSIZE = &H1 'don't size window
+
+Private Declare Function GetForegroundWindow Lib "user32" () As Long
+Private Declare Function FindWindow Lib "user32.dll" Alias "FindWindowA" (ByVal lpClassName As String, ByVal lpWindowName As String) As Long
+
+Dim lHwnd As Long
+
 Private Sub CmdAdd_Click()
     If Trim(TxtNewParty.Text) <> "" Then
         LstParties.AddItem Trim(TxtNewParty.Text)
@@ -109,6 +122,18 @@ Private Sub UserForm_Click()
 End Sub
 
 Private Sub UserForm_Initialize()
+
+
+
+'    UserForm1.Show vbModeless
+
+    lHwnd = FindWindow("ThunderDFrame", "Mark Page For Signatures")
+    
+    If lHwnd <> GetForegroundWindow Then
+        Call SetWindowPos(lHwnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE Or SWP_NOSIZE)
+    End If
+
+
 With LstParties
     .AddItem "Borrower"
     .AddItem "Lender"
