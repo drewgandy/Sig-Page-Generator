@@ -14,6 +14,7 @@ Attribute VB_GlobalNameSpace = False
 Attribute VB_Creatable = False
 Attribute VB_PredeclaredId = True
 Attribute VB_Exposed = False
+Dim MacroFilename As String
 Private Declare Function SetWindowPos Lib "user32" _
 (ByVal hWnd As Long, ByVal hWndInsertAfter As Long, ByVal x As Long, ByVal Y As Long, _
 ByVal cx As Long, ByVal cy As Long, ByVal wFlags As Long) As Long
@@ -47,7 +48,7 @@ Private Sub LstParties_DblClick(ByVal Cancel As MSForms.ReturnBoolean)
     Set currentPosition = Selection.Range
     currentpage = Selection.Information(wdActiveEndAdjustedPageNumber)
     Selection.WholeStory   'Select entire document
-    Selection.Expand Unit:=wdStory
+    Selection.Expand unit:=wdStory
 With Selection.Find
     .ClearFormatting
     .MatchWholeWord = False
@@ -60,7 +61,7 @@ With Selection.Find
             Debug.Print currentpage & "," & Selection.Information(wdActiveEndPageNumber)
             If currentpage = Selection.Information(wdActiveEndPageNumber) Then
                 Debug.Print "found on page"
-                Selection.Move Unit:=wdCharacter, Count:=1
+                Selection.Move unit:=wdCharacter, Count:=1
                 Selection.Font.Hidden = True
                 If CmbSigPageLimit.Text <> "No Limit" Then
                     PropList = PropList & ", LIMIT=" & Trim(CmbSigPageLimit.Text) & ", "
@@ -122,6 +123,11 @@ Private Sub UserForm_Click()
 End Sub
 
 Private Sub UserForm_Initialize()
+If Right(ActiveDocument.name, 4) = "docm" Then
+    MacroFilename = ActiveDocument.name
+    Documents(MacroFilename).ActiveWindow.Visible = False
+End If
+'Documents(MacroFilename).ActiveWindow.Visible = True
 
 
 
@@ -153,4 +159,9 @@ With CmbPageRange
         .AddItem Trim(Str(i))
     Next
 End With
+End Sub
+
+Private Sub UserForm_Terminate()
+If MacroFilename <> "" Then Documents(MacroFilename).ActiveWindow.Visible = True
+
 End Sub
